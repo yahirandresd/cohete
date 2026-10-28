@@ -1,0 +1,6 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# mapa descargado de OpenStreetMap: se regenera con descargar_mapa.py
+teselas/

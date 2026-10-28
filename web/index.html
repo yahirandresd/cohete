@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Estación CPWR</title>
+<link rel="preload" href="/static/fonts/archivo-wdth-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/jetbrains-mono-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body data-theme="noche" data-modo="vivo">
+<!--
+THESIS: La verdad del enlace manda. Una consola de vuelo donde el estado del radioenlace es la cabecera y nunca se muestra un dato viejo como si fuera vivo; rechaza la rejilla de tarjetas KPI iguales.
+OWN-WORLD: CRT apagado #0B0B0A, fósforo blanco #EAEAE4, rojo de peligro solo para alarmas, verde de terminal solo en la lámpara EN LÍNEA. Retícula de líneas de 1px, esquinas a 90°, corchetes ASCII, Archivo expandida negra para cifras macro, JetBrains Mono para medidas. Modo SOL: el mismo sistema impreso en papel.
+STORY: El operador ve si hay enlace, en qué fase va el cohete, cuántas g y qué inclinación; sabe qué es medido y qué es estimado; sale con un CSV por vuelo.
+FIRST VIEWPORT: Franja de enlace a todo el ancho; debajo FASE (palabra gigante + secuencia), ACTITUD (cohete sobre riel de 45°), CARGA (g gigante + escala 0-16 g); bastidor de gráficas y registro; mando abajo.
+FORM: Tactical Telemetry (industrial-brutalist-ui, fijado por el usuario). Raise (ikeda-datamatics): disciplina monocroma total en gráficas, ejes por patrón de trazo, no por color. Seed 260ec069.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+-->
+<header class="enlace" id="enlace" data-estado="espera">
+  <div class="enlace__estado">
+    <span class="lampara" aria-hidden="true"></span>
+    <output id="enlaceTexto" class="enlace__palabra">SIN SERVIDOR</output>
+    <output id="enlaceEdad" class="enlace__edad"></output>
+  </div>
+  <dl class="enlace__datos">
+    <div><dt>PAQ/S</dt><dd><data id="pps">--</data></dd></div>
+    <div><dt>PÉRDIDA</dt><dd><data id="perdida">--</data></dd></div>
+    <div><dt>ORIGEN</dt><dd><data id="origen">--</data></dd></div>
+    <div><dt>PAQUETES</dt><dd><data id="paquetes">0</data></dd></div>
+    <div class="enlace__archivo"><dt>GRABANDO</dt><dd><data id="archivo">--</data></dd></div>
+  </dl>
+  <div class="marca">
+    <span>CPWR</span>
+    <span class="marca__sub">ESTACIÓN TERRESTRE · UDP 8888 · U.CALDAS</span>
+  </div>
+</header>
+
+<div class="revision" id="revision" hidden>
+  <span class="revision__tag">[ REVISIÓN ]</span>
+  <output id="revisionNombre"></output>
+  <input type="range" id="cursor" min="0" max="0" value="0" aria-label="Posición en la grabación">
+  <output id="cursorT" class="revision__t">T 0.0 S</output>
+  <button type="button" class="btn" id="btnVivo">[ VOLVER A VIVO ]</button>
+</div>
+
+<main class="consola">
+  <section class="bloque fase" aria-labelledby="h-fase">
+    <h2 class="rotulo" id="h-fase">FASE DE VUELO</h2>
+    <output id="fase" class="fase__palabra">EN RAMPA</output>
+    <ol class="secuencia" id="secuencia">
+      <li data-fase="EN RAMPA">RAMPA</li>
+      <li data-fase="EMPUJE">EMPUJE</li>
+      <li data-fase="VUELO LIBRE">LIBRE</li>
+      <li data-fase="APOGEO">APOGEO</li>
+      <li data-fase="DESCENSO">DESCENSO</li>
+      <li data-fase="EN TIERRA">TIERRA</li>
+    </ol>
+    <dl class="cifras">
+      <div><dt>T VUELO</dt><dd><data id="tVuelo">0.00</data><small>S</small></dd></div>
+      <div><dt>ALTURA MÁX <abbr title="Estimada por doble integración de la IMU">EST.</abbr></dt><dd><data id="altMax">0.0</data><small>M</small></dd></div>
+      <div><dt>VEL MÁX <abbr title="Estimada por integración de la IMU">EST.</abbr></dt><dd><data id="vMax">0.0</data><small>M/S</small></dd></div>
+    </dl>
+  </section>
+
+  <section class="bloque actitud" aria-labelledby="h-actitud">
+    <h2 class="rotulo" id="h-actitud">ACTITUD</h2>
+    <div class="lienzo actitud__lienzo"><canvas id="lienzoActitud" role="img" aria-label="Inclinación del cohete respecto a la vertical"></canvas></div>
+    <dl class="cifras cifras--fila">
+      <div><dt>INCLIN.</dt><dd><data id="incl">--</data><small>°</small></dd></div>
+      <div><dt>ROLL</dt><dd><data id="roll">--</data></dd></div>
+      <div><dt>PITCH</dt><dd><data id="pitch">--</data></dd></div>
+      <div><dt>YAW</dt><dd><data id="yaw">--</data></dd></div>
+    </dl>
+  </section>
+
+  <section class="bloque carga" aria-labelledby="h-carga">
+    <h2 class="rotulo" id="h-carga">CARGA <span class="rotulo__u">|A| EN G</span></h2>
+    <output id="gAhora" class="carga__cifra">0.00</output>
+    <div class="escala" aria-hidden="true">
+      <div class="escala__barra"><i id="gBarra"></i><b id="gMarcaMax"></b></div>
+      <div class="escala__marcas"><span>0</span><span>4</span><span>8</span><span>12</span><span>16 G</span></div>
+    </div>
+    <dl class="cifras">
+      <div><dt>G MÁX</dt><dd><data id="gMax">0.00</data></dd></div>
+      <div><dt>REPOSO</dt><dd><data id="reposo">--</data></dd></div>
+      <div class="alarma-txt" id="satur" hidden><dt>SENSOR</dt><dd><data>SATURADO ±16 G</data></dd></div>
+    </dl>
+  </section>
+
+  <section class="bloque bastidor" aria-labelledby="h-graf">
+    <div class="bastidor__cab">
+      <h2 class="rotulo" id="h-graf">TRAZAS</h2>
+      <div class="ventana" role="group" aria-label="Ventana de tiempo">
+        <button type="button" class="btn btn--chip" data-ventana="10">10 S</button>
+        <button type="button" class="btn btn--chip" data-ventana="30" aria-pressed="true">30 S</button>
+        <button type="button" class="btn btn--chip" data-ventana="120">120 S</button>
+      </div>
+    </div>
+    <div class="trazas" id="trazas"></div>
+  </section>
+
+  <section class="bloque datos" aria-labelledby="h-datos">
+    <h2 class="rotulo" id="h-datos">ÚLTIMO PAQUETE</h2>
+    <table class="tabla">
+      <thead><tr><th></th><th>X</th><th>Y</th><th>Z</th></tr></thead>
+      <tbody>
+        <tr><th>ACC G</th><td id="ax">--</td><td id="ay">--</td><td id="az">--</td></tr>
+        <tr><th>A LIN M/S²</th><td id="lx">--</td><td id="ly">--</td><td id="lz">--</td></tr>
+        <tr><th>VEL M/S <abbr title="Estimada">EST</abbr></th><td id="vx">--</td><td id="vy">--</td><td id="vz">--</td></tr>
+        <tr><th>POS M <abbr title="Estimada">EST</abbr></th><td id="px">--</td><td id="py">--</td><td id="pz">--</td></tr>
+      </tbody>
+    </table>
+    <dl class="diag">
+      <div><dt>COHERENCIA IMU</dt><dd><data id="coh">--</data></dd></div>
+      <div><dt>ESTIMACIÓN</dt><dd><data id="fiable">--</data></dd></div>
+      <div><dt>SESGO</dt><dd><data id="calib">SIN CALIBRAR</data></dd></div>
+      <div><dt>HORA PC</dt><dd><data id="hora">--</data></dd></div>
+    </dl>
+    <div class="mapa">
+      <div class="mapa__cab">
+        <h2 class="rotulo rotulo--sep" id="h-mapa">MI POSICIÓN</h2>
+        <button type="button" class="btn btn--chip" id="btnRampa" title="Fija tu posición actual como punto de lanzamiento">[ MARCAR RAMPA ]</button>
+      </div>
+      <div class="mapa__vista" role="group" aria-label="Vista del mapa">
+        <button type="button" class="btn btn--chip" data-vista="tactico" aria-pressed="true">TÁCTICO</button>
+        <button type="button" class="btn btn--chip" data-vista="mapa" aria-pressed="false">MAPA</button>
+        <button type="button" class="btn btn--chip mapa__zoom" id="mapaMenos" aria-label="Alejar">−</button>
+        <button type="button" class="btn btn--chip" id="mapaMas" aria-label="Acercar">+</button>
+        <button type="button" class="btn btn--chip" id="btnGuardarMapa" title="Guarda Caldas y el detalle de esta zona para usarlo sin internet">GUARDAR ZONA</button>
+      </div>
+      <div class="lienzo mapa__lienzo"><canvas id="lienzoMapa" role="img" aria-labelledby="h-mapa"></canvas></div>
+      <dl class="diag">
+        <div><dt>LAT / LON</dt><dd><data id="gpsCoord">--</data></dd></div>
+        <div><dt>PRECISIÓN</dt><dd><data id="gpsPrec">--</data></dd></div>
+        <div><dt>A LA RAMPA</dt><dd><data id="gpsRampa">SIN MARCAR</data></dd></div>
+        <div><dt>ALTITUD</dt><dd><data id="gpsAlt">--</data></dd></div>
+      </dl>
+    </div>
+    <h2 class="rotulo rotulo--sep">REGISTRO</h2>
+    <ol class="registro" id="registro" aria-live="polite"></ol>
+  </section>
+</main>
+
+<footer class="mando">
+  <div class="mando__grupo">
+    <button type="button" class="btn" data-accion="calibrar" title="Con el cohete quieto: toma el sesgo actual como cero">[ CALIBRAR REPOSO ]</button>
+    <button type="button" class="btn" data-accion="reiniciar_vuelo" title="Vuelve a EN RAMPA y borra máximos">[ ARMAR VUELO ]</button>
+    <button type="button" class="btn" data-accion="reiniciar_integracion" title="Pone velocidad y posición estimadas en cero">[ CERO V/P ]</button>
+    <button type="button" class="btn" data-accion="nueva_sesion" title="Cierra el CSV actual y abre otro">[ NUEVA SESIÓN CSV ]</button>
+  </div>
+  <div class="mando__grupo">
+    <button type="button" class="btn" id="btnLog" title="Baja el log grabado a bordo (firmware v2)">[ BAJAR LOG A BORDO ]</button>
+    <button type="button" class="btn" id="btnSesiones" aria-expanded="false" aria-controls="sesiones">[ GRABACIONES ]</button>
+    <button type="button" class="btn btn--sol" id="btnSol" aria-pressed="false">[ MODO SOL ]</button>
+  </div>
+</footer>
+
+<aside class="sesiones" id="sesiones" hidden aria-labelledby="h-ses">
+  <div class="sesiones__cab">
+    <h2 class="rotulo" id="h-ses">GRABACIONES · MEDICIONES/</h2>
+    <button type="button" class="btn" id="btnCerrarSes">[ CERRAR ]</button>
+  </div>
+  <ol class="sesiones__lista" id="listaSesiones"></ol>
+</aside>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
